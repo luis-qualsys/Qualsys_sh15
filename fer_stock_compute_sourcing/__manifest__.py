@@ -21,7 +21,11 @@
         'views/fer_product_brand_views.xml',
         'wizard/fer_wizard_stock_compute_sourcing_view.xml',
         'wizard/fer_wizard_stock_weeks_compute_views.xml',
-        'views/fer_template_edit_button.xml'
+        # 'views/fer_template_edit_button.xml'
     ],
+    "assets": {
+        "web.assets_backend": [
+            "/fer_stock_compute_sourcing/static/src/js/fer_hide_edit_button.js"
+        ]},
     'application': True
 }
