@@ -12,9 +12,13 @@
     'data': [
         'security/ir.model.access.csv',
         'views/product_view.xml',
-        'views/pos_template.xml',
+        # 'views/pos_template.xml',
     ],
-    'images': ['static/description/banner.png'],
+    "assets": {
+        "point_of_sale.assets": [
+            "/fer_pos_mrp_order/static/src/js/models.js"
+        ]},
+    # 'images': ['static/description/banner.png'],
     'installable': True,
     'auto_install': False,
 }
