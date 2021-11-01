@@ -24,11 +24,15 @@ class FerStockWarehouseOrderpointEfim(models.Model):
     @api.depends('product_id')
     def get_brand_name(self):
         for record in self:
-            print(record.product_id.product_tmpl_id)
-            product = self.env['product.template'].search([('id', '=', record.product_id.product_tmpl_id.id)])[0]
-            
-            if product.id:
-                print(product.fer_brand_ids.fer_brand_name)
-                record.fer_brand_name = product.fer_brand_ids.fer_brand_name
+            if record.product_id:
+                # print(record.product_id.product_tmpl_id)
+                product = self.env['product.template'].search([('id', '=', record.product_id.product_tmpl_id.id)])[0]
+                
+                if product.id:
+                    print(product.fer_brand_ids.fer_brand_name)
+                    record.fer_brand_name = product.fer_brand_ids.fer_brand_name
+                else:
+                    record.fer_brand_name = ''
             else:
                 record.fer_brand_name = ''
+                continue

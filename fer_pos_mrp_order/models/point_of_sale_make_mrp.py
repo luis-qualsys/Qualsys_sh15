@@ -51,7 +51,7 @@ class MrpProduction(models.Model):
                                 'location_dest_id': bom.picking_type_id.default_location_dest_id.id,
                             }
                             mrp_order = self.env['mrp.production'].new(vals)
-                            mrp_order.onchange_product_id()
+                            mrp_order._onchange_product_id()
                             mrp_order._onchange_product_qty()
                             mrp_order._onchange_bom_id()
                             mrp_order._onchange_date_planned_start()
@@ -75,7 +75,7 @@ class MrpProduction(models.Model):
                             # mrp._onchange_move_finished()
                             mrp._onchange_location()
                             mrp._onchange_location_dest()
-                            mrp.onchange_picking_type()
+                            mrp._onchange_picking_type()
                             mrp._onchange_producing()
                             mrp._onchange_lot_producing()
                             mrp._onchange_workorder_ids()
