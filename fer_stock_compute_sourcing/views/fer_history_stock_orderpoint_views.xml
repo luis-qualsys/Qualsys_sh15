@@ -38,19 +38,19 @@
                     <notebook>
                         <page string="Reglas efimeras de abastecimiento">
                             <field string="Reglas de abastecimiento" widget="one2many" name="fer_stock_rules_efim_ids">
-                                <tree>
+                                <tree editable="bottom">
                                     <field name="product_id"/>
                                     <field name="location_id"/>
-                                    <field name="fer_brand_name"/>
+                                    <field name="fer_brand_name" readonly="1"/>
                                     <field name="fer_c_product_min"/>
                                     <field name="fer_c_product_max"/>
-                                    <field name="fer_old_product_min"/>
-                                    <field name="fer_old_product_max"/>
-                                    <field name="fer_product_average" optional="hide"/>
-                                    <field name="fer_product_cumulative" optional="hide"/>
-                                    <field name="fer_product_letter" optional="hide"/>
-                                    <field name="fer_product_participation" optional="hide"/>
-                                    <field name="fer_qty_done" optional="hide"/>
+                                    <field name="fer_old_product_min" readonly="1" force_save="1"/>
+                                    <field name="fer_old_product_max" readonly="1"  force_save="1"/>
+                                    <field name="fer_product_average" optional="hide" readonly="1"/>
+                                    <field name="fer_product_cumulative" optional="hide" readonly="1"/>
+                                    <field name="fer_product_letter" optional="hide" readonly="1"/>
+                                    <field name="fer_product_participation" optional="hide" readonly="1"/>
+                                    <field name="fer_qty_done" optional="hide" readonly="1"/>
                                 </tree>
                             </field>
                         </page>
