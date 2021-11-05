@@ -110,12 +110,53 @@ class PurchaseOrder(models.Model):
         for line in supplier_lines:
             line.unlink()
 
+    # def download_txt(self):
+    #     self.write({'state': "sent"})
+    #     nombre="Solicitud"+self.name+".txt"
+    #     # ruta ="/odoo14hd/odoo14hd-server/Odoo_14hd/" + nombre
+    #     # ruta ="/odoo/odoo-server/" + nombre
+    #     data = open(nombre,'w+')
+    #     data.write("%s \r\n" % self.partner_id.ref)
+    #     for line in self.order_line:
+    #         data.write("%s,%d\r\n" % (line.product_id.default_code,int(line.product_qty)))
+    #     file_data = data.read()
+    #     # data.close()
+    #     self.fer_txt = base64.b64encode(open(nombre, "rb").read())
 
+    #     values = {
+    #                 'name': nombre,
+    #                 # 'datas_fname': nombre,
+    #                 'res_model': 'purchase.order',
+    #                 'res_id': self.id,
+    #                 'type': 'binary',
+    #                 'public': True,
+    #                 'datas': base64.b64encode(open(nombre, "rb").read()),
+    #                 # 'datas': file_data.encode('utf8').encode('base64'),
+    #             }
+
+    #     attachment_id = self.env['ir.attachment'].sudo().create(values)
+    #     download_url = '/web/content/attachment_id=' + str(attachment_id.id) + '?download=True'
+    #     base_url = self.env['ir.config_parameter'].get_param('web.base.url')
+
+    #     # return self.fer_txt.report_action(self)
+    #     # def report_action(self, docids, data=None, config=True):
+
+    #     return {
+    #             'type': 'ir.actions.act_url',
+    #             'url': '/web/content/%s?download=true' % (attachment_id.id),
+    #             'target': 'current',
+    #             # 'nodestroy': False,
+    #             # 'tag': 'reload',
+    #             "context": {'tag':'reload'},
+    #             # "type": "ir.actions.report",
+    #             # "data": file_data,
+    #             # "res_id": attachment_id.id,
+    #             # "res_model": "ir.attachment",
+    #     }
     def download_txt(self):
         self.state='sent'
         nombre="Solicitud"+self.name+".txt"
-        ruta ="/odoo14hd/odoo14hd-server/Odoo_14hd/" + nombre
-        # ruta ="/odoo/odoo-server/" + nombre
+        ruta ="/home/odoo/tmp/" + nombre
         data = open(ruta,'w+')
         data.write("%s \r\n" % self.partner_id.ref)
         for line in self.order_line:
