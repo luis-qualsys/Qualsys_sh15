@@ -51,7 +51,7 @@ class FerComputeModelSearch(models.Model):
     def default_get(self, fields):
         mode = super(FerComputeModelSearch, self).default_get(fields)
         lines_suggest = [(6,0,0)]
-        locations = self.env['fer.stock.computer.parms'].search([('id', '=', 1)])
+        locations = self.env['fer.stock.computer.parms'].search([])[0]
         ids = 0
         for loc in locations[0].location_ids:
             ids = loc.id
