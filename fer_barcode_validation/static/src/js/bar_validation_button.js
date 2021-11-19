@@ -20,7 +20,7 @@ MainComponent.prototype._getProvider = async function(){
 
 MainComponent.prototype.openProductPage = async function(){
     var provider = await this._getProvider();
-    if(this.providerCategory=="Mayorista"){
+    if(this.providerCategory=="Mayorista" & this._editedLineParams==undefined){
         alert("No se pueden agregar nuevos productos a este pedido.")
     }
     else{
