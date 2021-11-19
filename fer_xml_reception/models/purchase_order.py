@@ -168,6 +168,7 @@ class PurchaseOrder(models.Model):
             'type': 'ir.actions.act_url',
             'name': 'contract',
             'url': '/web/content/purchase.order/%s/fer_txt/%s?download=true' %(self.id,nombre),
+            'tag': 'reload',
         }
     # def download_txt(self):
     #     self.state='sent'

@@ -1,219 +1,223 @@
-odoo.define('fer_barcode_validation.override_line', function(require) {
-    'use strict';
+/** @odoo-module **/
 
-    var NewWidget = require('stock_barcode.ClientAction')
+import BarcodeModel from '@stock_barcode/models/barcode_model';
+const rpc = require('web.rpc');
 
-    var core = require('web.core');
+BarcodeModel.prototype._getProvider = async function(){ 
+        var self = this;
+        var id=self.params.id;
+        return rpc.query({
+            model: 'stock.picking',
+            method: 'get_provider_cat',
+            args: [id],
+        }).then(function (res) {
+            self.providerCategory = res;
+        });
+}
 
-    var LinesWidget = require('stock_barcode.LinesWidget');
+BarcodeModel.prototype._processBarcode = async function(barcode){ 
+    let barcodeData = {};
+    let currentLine = false;
+    // Creates a filter if needed, which can help to get the right record
+    // when multiple records have the same model and barcode.
+    const filters = {};
+    if (this.selectedLine && this.selectedLine.product_id.tracking !== 'none') {
+        filters['stock.production.lot'] = {
+            product_id: this.selectedLine.product_id.id,
+        };
+    }
+    try {
+        barcodeData = await this._parseBarcode(barcode, filters);
+    } catch (parseErrorMessage) {
+        barcodeData.error = parseErrorMessage;
+    }
 
-    var _t = core._t;
+    // Process each data in order, starting with non-ambiguous data type.
+    if (barcodeData.action) { // As action is always a single data, call it and do nothing else.
+        return await barcodeData.action();
+    }
 
-    var QWeb = core.qweb;
-    NewWidget.include({
+    if (barcodeData.lot && !barcode.product) {
+        barcodeData.product = this.cache.getRecord('product.product', barcodeData.lot.product_id);
+    }
 
-        _step_product: async function (barcode, linesActions) {
-            var self = this;
-            this.currentStep = 'product';
-            this.stepState = $.extend(true, {}, this.currentState);
-            var errorMessage;
-            
-            var provider = await this._getProvider();
+    await this._processLocation(barcodeData);
+    await this._processPackage(barcodeData);
+    if (barcodeData.stopped) {
+        // TODO: Sometime we want to stop here instead of keeping doing thing,
+        // but it's a little hacky, it could be better to don't have to do that.
+        return;
+    }
 
-            var product = await this._isProduct(barcode);
-            if (product) {
-                if (product.tracking !== 'none' && self.requireLotNumber) {
-                    this.currentStep = 'lot';
-                }
-                var res = this._incrementLines({'product': product, 'barcode': barcode});
-                if (res.isNewLine) {
-                    if (this.actionParams.model === 'stock.inventory') {
-                        // FIXME sle: add owner_id, prod_lot_id, owner_id, product_uom_id
-                        return this._rpc({
-                            model: 'product.product',
-                            method: 'get_theoretical_quantity',
-                            args: [
-                                res.lineDescription.product_id.id,
-                                res.lineDescription.location_id.id,
-                            ],
-                        }).then(function (theoretical_qty) {
-                            res.lineDescription.theoretical_qty = theoretical_qty;
-                            linesActions.push([self.linesWidget.addProduct, [res.lineDescription, self.actionParams.model]]);
-                            self.scannedLines.push(res.id || res.virtualId);
-                            return Promise.resolve({linesActions: linesActions});
-                        });
-                    } else {
-                        linesActions.push([this.linesWidget.addProduct, [res.lineDescription, this.actionParams.model]]);
-                    }
-                } else if (!(res.id || res.virtualId)) {
-                    return Promise.reject(_t("There are no lines to increment."));
-                } else {
-                    if (product.tracking === 'none' || !self.requireLotNumber) {
-                        linesActions.push([this.linesWidget.incrementProduct, [res.id || res.virtualId, product.qty || 1, this.actionParams.model]]);
-                    } else {
-                        linesActions.push([this.linesWidget.incrementProduct, [res.id || res.virtualId, 0, this.actionParams.model]]);
-                    }
-                }
-                this.scannedLines.push(res.id || res.virtualId);
-                return Promise.resolve({linesActions: linesActions});
+    if (barcodeData.weight) { // Convert the weight into quantity.
+        barcodeData.quantity = barcodeData.weight.value;
+    }
+
+    // If no product found, take the one from last scanned line if possible.
+    if (!barcodeData.product) {
+        if (barcodeData.quantity) {
+            currentLine = this.selectedLine || this.lastScannedLine;
+        } else if (this.selectedLine && this.selectedLine.product_id.tracking !== 'none') {
+            currentLine = this.selectedLine;
+        } else if (this.lastScannedLine && this.lastScannedLine.product_id.tracking !== 'none') {
+            currentLine = this.lastScannedLine;
+        }
+        if (currentLine) { // If we can, get the product from the previous line.
+            const previousProduct = currentLine.product_id;
+            // If the current product is tracked and the barcode doesn't fit
+            // anything else, we assume it's a new lot/serial number.
+            if (previousProduct.tracking !== 'none' &&
+                !barcodeData.match && this.canCreateNewLine) {
+                barcodeData.lotName = barcode;
+            }
+            if (currentLine.lot_id || currentLine.lot_name ||
+                barcodeData.lot || barcodeData.lotName ||
+                barcodeData.quantity) {
+                barcodeData.product = previousProduct;
+            }
+        }
+    }
+    const {product} = barcodeData;
+    if (!product) { // Product is mandatory, if no product, raises a warning.
+        if (!barcodeData.error) {
+            if (this.groups.group_tracking_lot) {
+                barcodeData.error = _t("You are expected to scan one or more products or a package available at the picking location");
             } else {
-                var success = function (res) {
-                    return Promise.resolve({linesActions: res.linesActions});
-                };
-                var fail = function (specializedErrorMessage) {
-                    self.currentStep = 'product';
-                    if (specializedErrorMessage){
-                        return Promise.reject(specializedErrorMessage);
-                    }
-                    if (! self.scannedLines.length) {
-                        if (self.groups.group_tracking_lot) {
-                            errorMessage = _t("You are expected to scan one or more products or a package available at the picking's location");
-                        } else {
-                            errorMessage = _t('You are expected to scan one or more products.');
-                        }
-                        return Promise.reject(errorMessage);
-                    }
-    
-                    var destinationLocation = self.locationsByBarcode[barcode];
-                    if (destinationLocation) {
-                        return self._step_destination(barcode, linesActions);
-                    } else {
-                        errorMessage = _t('You are expected to scan more products or a destination location.');
-                        return Promise.reject(errorMessage);
-                    }
-                };
-                return self._step_lot(barcode, linesActions).then(success, function () {
-                    return self._step_package(barcode, linesActions).then(success, fail);
+                barcodeData.error = _t("You are expected to scan one or more products.");
+            }
+        }
+        return this.notification.add(barcodeData.error, { type: 'danger' });
+    }
+
+    // Default quantity set to 1 by default if the product is untracked or
+    // if there is a scanned tracking number.
+    if (product.tracking === 'none' || barcodeData.lot || barcodeData.lotName || this._incrementTrackedLine()) {
+        barcodeData.quantity = barcodeData.quantity || 1;
+        if (product.tracking === 'serial' && barcodeData.quantity > 1 && (barcodeData.lot || barcodeData.lotName)) {
+            barcodeData.quantity = 1;
+            this.notification.add(
+                _t(`A product tracked by serial numbers can't have multiple quantities for the same serial number.`),
+                { type: 'danger' }
+            );
+        }
+    }
+
+    // Searches and selects a line if needed.
+    if (!currentLine || this._shouldSearchForAnotherLine(currentLine, barcodeData)) {
+        currentLine = this._findLine(barcodeData);
+    }
+
+    if ((barcodeData.lotName || barcodeData.lot) && product) {
+        const lotName = barcodeData.lotName || barcodeData.lot.name;
+        for (const line of this.currentState.lines) {
+            if (line.product_id.tracking === 'serial' && this.getQtyDone(line) !== 0 &&
+                ((line.lot_id && line.lot_id.name) || line.lot_name) === lotName) {
+                return this.notification.add(
+                    _t("The scanned serial number is already used."),
+                    { type: 'danger' }
+                );
+            }
+        }
+        // Prefills `owner_id` and `package_id` if possible.
+        const prefilledOwner = (!currentLine || (currentLine && !currentLine.owner_id)) && this.groups.group_tracking_owner && !barcodeData.owner;
+        const prefilledPackage = (!currentLine || (currentLine && !currentLine.package_id)) && this.groups.group_tracking_lot && !barcodeData.package;
+        if (this.useExistingLots && (prefilledOwner || prefilledPackage)) {
+            const lotId = (barcodeData.lot && barcodeData.lot.id) || (currentLine && currentLine.lot_id && currentLine.lot_id.id) || false;
+            const res = await this.orm.call(
+                'product.product',
+                'prefilled_owner_package_stock_barcode',
+                [product.id],
+                {
+                    lot_id: lotId,
+                    lot_name: (!lotId && barcodeData.lotName) || false,
+                }
+            );
+            this.cache.setCache(res.records);
+            if (prefilledPackage && res.quant && res.quant.package_id) {
+                barcodeData.package = this.cache.getRecord('stock.quant.package', res.quant.package_id);
+            }
+            if (prefilledOwner && res.quant && res.quant.owner_id) {
+                barcodeData.owner = this.cache.getRecord('res.partner', res.quant.owner_id);
+            }
+        }
+    }
+
+    // Updates or creates a line based on barcode data.
+    if (currentLine) { // If line found, can it be incremented ?
+        let exceedingQuantity = 0;
+        if (this.canCreateNewLine) {
+            // Checks the quantity doesn't exceed the line's remaining quantity.
+            if (currentLine.product_uom_qty && product.tracking === 'none') {
+                const remainingQty = currentLine.product_uom_qty - currentLine.qty_done;
+                if (barcodeData.quantity > remainingQty) {
+                    // In this case, lowers the increment quantity and keeps
+                    // the excess quantity to create a new line.
+                    exceedingQuantity = barcodeData.quantity - remainingQty;
+                    barcodeData.quantity = remainingQty;
+                }
+            }
+        }
+        if (barcodeData.quantity > 0) {
+            const fieldsParams = this._convertDataToFieldsParams({
+                qty: barcodeData.quantity,
+                lotName: barcodeData.lotName,
+                lot: barcodeData.lot,
+                package: barcodeData.package,
+                owner: barcodeData.owner,
+            });
+            if (barcodeData.uom) {
+                fieldsParams.uom = barcodeData.uom;
+            }
+            await this.updateLine(currentLine, fieldsParams);
+        }
+        if (exceedingQuantity) { // Creates a new line for the excess quantity.
+            var provider = await this._getProvider();
+            if(this.providerCategory=="Mayorista"){
+                alert("La cantidad no puede ser mayor a la especificada en el pedido.")
+            }
+            else{
+                const fieldsParams = this._convertDataToFieldsParams({
+                    product,
+                    qty: exceedingQuantity,
+                    lotName: barcodeData.lotName,
+                    lot: barcodeData.lot,
+                    package: barcodeData.package,
+                    owner: barcodeData.owner,
+                });
+                if (barcodeData.uom) {
+                    fieldsParams.uom = barcodeData.uom;
+                }
+                currentLine = await this._createNewLine({
+                    copyOf: currentLine,
+                    fieldsParams,
                 });
             }
-        },
-    
-        _getProvider: function () {
-            var self = this;
-            console.dir(self.actionParams.id);
-            return this._rpc({
-                model: 'stock.picking',
-                method: 'get_provider_cat',
-                args: [self.actionParams.id],
-            }).then(function (res) {
-                self.providerCategory = res;
-            });
-        },
-    
-        _onAddLine: async function (ev) {
+        }
+    } else if (this.canCreateNewLine) { // No line found. If it's possible, creates a new line.
             var provider = await this._getProvider();
-            
             if(this.providerCategory=="Mayorista"){
                 alert("No se pueden agregar nuevas líneas de producto a este pedido.")
             }
             else{
-                ev.stopPropagation();
-                this.mutex.exec(() => {
-                    this.linesWidgetState = this.linesWidget.getState();
-                    this.linesWidget.destroy();
-                    this.headerWidget.toggleDisplayContext('specialized');
-                    // Get the default locations before calling save to not lose a newly created page.
-                    var currentPage = this.pages[this.currentPageIndex];
-                    var defaultValues = this._getAddLineDefaultValues(currentPage);
-                    return this._save().then(() => {
-                        this.ViewsWidget = this._instantiateViewsWidget(defaultValues);
-                        return this.ViewsWidget.appendTo(this.$('.o_content'));
-                    });
-                });
-            }
-        },
+                const fieldsParams = this._convertDataToFieldsParams({
+                    product,
+                    qty: barcodeData.quantity,
+                    lotName: barcodeData.lotName,
+                    lot: barcodeData.lot,
+                    package: barcodeData.package,
+                    owner: barcodeData.owner,
+        });
+        if (barcodeData.uom) {
+            fieldsParams.uom = barcodeData.uom;
+        }
+        currentLine = await this._createNewLine({fieldsParams});
 
-        _incrementLines: function (params) {
-            //alert("_incrementLines");
-            console.log(params);
-            var line = this._findCandidateLineToIncrement(params);
-            var isNewLine = false;
-            console.log(line);
-            console.log(this);
-            console.log(this.providerCategory);
-            var provider=this.providerCategory;
-            if (line) {
-                // Update the line with the processed quantity.
-                if (params.product.tracking === 'none' ||
-                    params.lot_id ||
-                    params.lot_name ||
-                    !this.requireLotNumber
-                    ) {
-                    if (this._isPickingRelated()) {
-                        //alert(provider);
-                        if(provider == "Mayorista"){
-                            if((line.qty_done+(params.product.qty || 1)) > line.product_uom_qty){
-                                alert("La cantidad no puede ser mayor a la especificada en el pedido.");
-                                // return Promise.reject(("La cantidad es mayor."));
-                                return 0;
-                            }
-                            else{
-                                line.qty_done += params.product.qty || 1;
-                                if (params.package_id) {
-                                    line.package_id = params.package_id;
-                                }
-                                if (params.result_package_id) {
-                                    line.result_package_id = params.result_package_id;
-                                }
-                            }
-                        }
-                        else{
-                            line.qty_done += params.product.qty || 1;
-                            if (params.package_id) {
-                                line.package_id = params.package_id;
-                            }
-                            if (params.result_package_id) {
-                                line.result_package_id = params.result_package_id;
-                            }
-                        }
-                    } else if (this.actionParams.model === 'stock.inventory') {
-                        line.product_qty += params.product.qty || 1;
-                    }
-                }
-            } else if (this._isAbleToCreateNewLine()) {
-                if(provider=="Mayorista"){
-                    alert("El producto no se puede agregar porque no se encuentra en el pedido.");
-                    // return Promise.reject(("La cantidad es mayor."));
-                    return 0;
-                }
-                else{
-                    isNewLine = true;
-                    // Create a line with the processed quantity.
-                    if (params.product.tracking === 'none' ||
-                        params.lot_id ||
-                        params.lot_name ||
-                        !this.requireLotNumber
-                        ) {
-                        params.qty_done = params.product.qty || 1;
-                    } else {
-                        params.qty_done = 0;
-                    }
-                    line = this._makeNewLine(params);
-                    this._getLines(this.currentState).push(line);
-                    this.pages[this.currentPageIndex].lines.push(line);
-                }
             }
-            if (this._isPickingRelated()) {
-                if (params.lot_id) {
-                    line.lot_id = [params.lot_id];
-                }
-                if (params.lot_name) {
-                    line.lot_name = params.lot_name;
-                }
-            } else if (this.actionParams.model === 'stock.inventory') {
-                if (params.lot_id) {
-                    line.prod_lot_id = [params.lot_id, params.lot_name];
-                }
-            }
-            return {
-                'id': line.id,
-                'virtualId': line.virtual_id,
-                'lineDescription': line,
-                'isNewLine': isNewLine,
-            };
-        },
-        
-   });
-    
-    return LinesWidget;
-});
+    }
+
+    // And finally, if the scanned barcode modified a line, selects this line.
+    if (currentLine) {
+        this.selectLine(currentLine);
+    }
+    this.trigger('update');
+}

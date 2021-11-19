@@ -29,7 +29,8 @@
         'security/ir.model.access.csv',
     ],
     'assets': {
-        'stock_barcode.assets_backend': [
+        'web.assets_backend': [
+            '/fer_barcode_validation/static/src/js/bar_validation_button.js',
             '/fer_barcode_validation/static/src/js/bar_validation_line.js',
             '/fer_barcode_validation/static/src/js/bar_validation_client.js',
         ]
