@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<odoo>
+    <data noupdate="1">
+        <!-- Add you code here -->
+        <record id="ivoy_tracking_id_email_id" model="mail.template">
+            <field name="name">Tracking ID iVoy: Enviar correo</field>
+            <field name="model_id" ref="jyc_ivoy_api.stock_picking"/>
+            <field name="email_from">${object.user_id.email_formatted | safe}</field>
+            <field name="email_to">${object.partner_id.email}</field>
+            <field name="subject">JornyChop - Número de seguimiento</field>
+            <field name="body_html" type="">
+                <div style="margin: 0px; padding: 0px">
+                    <p style="margin: 0px; padding: 0px; font-size: 13px">
+                        Gracias - {object.partner_id.name}
+                        <br/>
+                        <br/>
+                        Aquí enviamos tu numero de guía ${object.jyc_tracking_id}
+                        <br/>
+                        <br/>
+                        <button string="Rastreo iVoy" class="btn-primary"><a href="https://tracking.ivoy.mx/"></a></button>
+                        <br/>
+                        <br/>
+                    </p>
+                </div>
+            </field>
+            <!-- <field name="report_template" ref=""/> -->
+            <field name="report_name">Tracking ID iVoy - ${object.name_seq}</field>
+        </record>
+    </data>
+</odoo>

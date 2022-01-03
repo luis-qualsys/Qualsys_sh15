@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<odoo>
+    <!-- res.company inherit form view -->
+    <record id="res_company_inherit_view_form" model="ir.ui.view">
+        <field name="name">res.company.inherit.view.form</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <!-- Add your xpath here -->
+            <xpath expr="//page[@name='general_info']" position="after">
+                <page string="iVoy Configuraciones">
+                    <group>
+                        <group>
+                            <field name="jyc_ivoy_shop_name"/>
+                            <field name="jyc_ivoy_referenceId"/>
+                            <field name="jyc_ivoy_description"/>
+                            <field name="jyc_ivoy_instructions"/>
+                        </group>
+                        <group>
+                            <field name="jyc_ivoy_contact"/>
+                            <field name="mobile" readonly="1"/>
+                            <field name="email"  readonly="1"/>
+                            <field name="jyc_ivoy_latitude"/>
+                            <field name="jyc_ivoy_longitude"/>
+                        </group>
+                    </group>
+                    <group>
+                        <button name="get_warehouse_ivoy" string="Generar Almacen ID" class="btn-primary" type="object"/>
+                        <br/>
+                        <field name="jyc_ivoy_warehouse_id"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

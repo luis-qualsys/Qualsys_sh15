@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<odoo>
+    <!-- stock.picking inherit form view -->
+    <record id="stock_picking_inherit_view_form" model="ir.ui.view">
+        <field name="name">stock.picking.inherit.view.form</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <!-- Add your xpath here -->
+            <xpath expr="//header//button[@name='button_validate']" position="after">
+                <button name="validate_with_tracking_id_ivoy" string="Obtener Tracking ID" class="btn-primary" type="object" attrs="{'invisible': [('state', '=', 'done')]}"/>
+                <button name="send_tracking_id_ivoy" string="Enviar Tracking ID" class="btn" type="object" attrs="{'invisible': [('state', '!=', 'done')]}"/>
+            </xpath>
+            <xpath expr="//field[@name='picking_type_id']" position="after">
+                <field name="jyc_tracking_id"/>
+            </xpath>
+            <xpath expr="//page[@name='extra']" position="after">
+                <page string="Detalles del paquete iVoy">
+                    <group>
+                        <group string="Dimensiones">
+                            <p>En caso de enviar documentos dejar la altura en 0</p>
+                            <field name="jyc_altura"/>
+                            <field name="jyc_ancho"/>
+                            <field name="jyc_longitud"/>
+                            <field name="jyc_peso"/>
+                        </group>
+                        <group string="Detalles">
+                            <field name="jyc_description"/>
+                            <field name="jyc_cantidad"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
